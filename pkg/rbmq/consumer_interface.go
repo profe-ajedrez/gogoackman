@@ -6,7 +6,25 @@ import (
 	"github.com/streadway/amqp"
 )
 
-type ConsumerCallback func(workerId int, body []byte)
+type (
+	// ConsumerCallback callback with the task to do by the consumer
+	ConsumerCallback func(workerId int, body []byte)
+	// OnDisconnection what to do on disconnection
+	OnDisconnection func(errorStr string)
+	// OnGiveUp what to do whe giving up a connection
+	OnGiveUp func()
+	// OnErrorAtConsumeMessage What to do on error at comsume of a message
+	OnErrorAtConsumeMessage func(errorStr string, body []byte)
+
+	// Callbacks struct to pass the callback parameters to the consumer
+	Callbacks struct {
+		ConsumerCallback        ConsumerCallback
+		OnDisconnection         OnDisconnection
+		OnFailedAttemp          func(errorMsg string, attemp int)
+		OnGiveUp                OnGiveUp
+		OnErrorAtConsumeMessage OnErrorAtConsumeMessage
+	}
+)
 
 // ConsumerConfig stores the config to be passed to the created consumers
 type ConsumerConfig struct {
@@ -38,7 +56,7 @@ type ConsumerConfig struct {
 
 // Consumer is an interface wich represents a connection to a RabbitMq instance to consume messages
 type Consumer interface {
-	Start(actionCallback ConsumerCallback) error
-	closedConnectionListener(closed <-chan *amqp.Error, actionCallback ConsumerCallback)
-	consume(channel *amqp.Channel, id int, actionCallback ConsumerCallback)
+	Start(callbacks Callbacks) error
+	closedConnectionListener(closed <-chan *amqp.Error, callbacks Callbacks)
+	consume(channel *amqp.Channel, id int, callbacks Callbacks)
 }

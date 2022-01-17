@@ -24,13 +24,13 @@ func NewGogoAckman(config ConsumerConfig, rabbit Rabbiter) Consumer {
 }
 
 // Start runs the workers
-func (a *gogoAckman) Start(actionCallback ConsumerCallback) error {
+func (a *gogoAckman) Start(callbacks Callbacks) error {
 	con, err := a.Rabbit.Connection()
 	if err != nil {
 		return err
 	}
 
-	go a.closedConnectionListener(con.NotifyClose(make(chan *amqp.Error)), actionCallback)
+	go a.closedConnectionListener(con.NotifyClose(make(chan *amqp.Error)), callbacks)
 
 	chn, err := con.Channel()
 	if err != nil {
@@ -76,7 +76,7 @@ func (a *gogoAckman) Start(actionCallback ConsumerCallback) error {
 
 	for i := 1; i <= a.config.WorkerQty; i++ {
 		id := i
-		go a.consume(chn, id, actionCallback)
+		go a.consume(chn, id, callbacks)
 	}
 
 	return nil
@@ -84,15 +84,13 @@ func (a *gogoAckman) Start(actionCallback ConsumerCallback) error {
 
 // closedConnectionListener attemps to reconnect to the server and tries to reopen channels for a time
 // if connection is closed
-func (a *gogoAckman) closedConnectionListener(closed <-chan *amqp.Error, actionCallback ConsumerCallback) {
+func (a *gogoAckman) closedConnectionListener(closed <-chan *amqp.Error, callbacks Callbacks) {
 	log.Println("INFO: Watching closed connection")
 
-	// If you do not want to reconnect in the case of manual disconnection
-	// via RabbitMQ UI or Server restart, handle `amqp.ConnectionForced`
-	// error code.
 	err := <-closed
 	if err != nil {
 		log.Println("INFO: Closed connection:", err.Error())
+		callbacks.OnDisconnection(err.Error())
 
 		var i int
 
@@ -102,9 +100,13 @@ func (a *gogoAckman) closedConnectionListener(closed <-chan *amqp.Error, actionC
 			if err := a.Rabbit.Connect(); err == nil {
 				log.Println("INFO: Reconnected")
 
-				if err := a.Start(actionCallback); err == nil {
+				if err := a.Start(callbacks); err == nil {
 					break
+				} else {
+					callbacks.OnFailedAttemp(err.Error(), i)
 				}
+			} else {
+				callbacks.OnFailedAttemp(err.Error(), i)
 			}
 
 			time.Sleep(a.config.Reconnect.Interval)
@@ -112,7 +114,7 @@ func (a *gogoAckman) closedConnectionListener(closed <-chan *amqp.Error, actionC
 
 		if i == a.config.Reconnect.MaxAttempt {
 			log.Println("CRITICAL: Giving up reconnecting")
-
+			callbacks.OnGiveUp()
 			return
 		}
 	} else {
@@ -121,7 +123,7 @@ func (a *gogoAckman) closedConnectionListener(closed <-chan *amqp.Error, actionC
 	}
 }
 
-func (a *gogoAckman) consume(channel *amqp.Channel, id int, actionCallback ConsumerCallback) {
+func (a *gogoAckman) consume(channel *amqp.Channel, id int, callback Callbacks) {
 	msgs, err := channel.Consume(
 		a.config.QueueName,
 		fmt.Sprintf("%s (%d/%d)", a.config.ConsumerName, id, a.config.WorkerQty),
