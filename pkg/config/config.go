@@ -25,7 +25,7 @@ type Settings struct {
 		QueueName    string `yaml:"queue_name"`
 		ConsumerName string `yaml:"consumer_name"`
 		WorkerQty    int    `yaml:"worker_qty"`
-		PreloadLevel string `yaml:"preload_level"`
+		PreloadLevel int    `yaml:"preload_level"`
 	}
 }
 
