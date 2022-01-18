@@ -18,6 +18,15 @@ type Settings struct {
 		VHost          string `yaml:"vhost"`
 		ConnectionName string `yaml:"connection_name"`
 	}
+	Consumer struct {
+		ExchangeName string `yaml:"exchange_name"`
+		ExchangeType string `yaml:"exchange_type"`
+		RoutingKey   string `yaml:"routing_name"`
+		QueueName    string `yaml:"queue_name"`
+		ConsumerName string `yaml:"consumer_name"`
+		WorkerQty    int    `yaml:"worker_qty"`
+		PreloadLevel string `yaml:"preload_level"`
+	}
 }
 
 // Read loads the config from `onfigPath` yml file
